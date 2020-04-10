@@ -18,6 +18,7 @@ pluralize.defnoun("hertz", "hertz")
 
 
 class TagValidator:
+    ATTRIBUTE_CURLY_BRACES_ERROR_TYPE = 'attributeGroupBraces'
     BRACKET_ERROR_TYPE = 'bracket'
     CHARACTER_ERROR_TYPE = 'character'
     COMMA_ERROR_TYPE = 'comma'
@@ -49,7 +50,7 @@ class TagValidator:
     SI_UNIT_MODIFIER_KEY = 'SIUnitModifier'
     SI_UNIT_SYMBOL_MODIFIER_KEY = 'SIUnitSymbolModifier'
 
-    def __init__(self, hed_dictionary=None, check_for_warnings=False, run_semantic_validation=True):
+    def __init__(self, hed_dictionary=None, check_for_warnings=False, run_semantic_validation=True, allow_attribute_groups=False):
         """Constructor for the Tag_Validator class.
 
         Parameters
@@ -66,10 +67,11 @@ class TagValidator:
         self._hed_dictionary = hed_dictionary
         self._hed_dictionary_dictionaries = hed_dictionary.get_dictionaries()
         self._check_for_warnings = check_for_warnings
+        self._run_semantic_validation = run_semantic_validation
+        self._allow_attribute_groups = allow_attribute_groups
         self._issue_count = 0
         self._error_count = 0
         self._warning_count = 0
-        self._run_semantic_validation = run_semantic_validation
 
     def _increment_issue_count(self, is_error=True):
         """Increments the validation issue count
@@ -196,6 +198,8 @@ class TagValidator:
         validation_issues += self.find_invalid_character_issues(hed_string)
         validation_issues += self.count_tag_group_brackets(hed_string)
         validation_issues += self.find_comma_issues_in_hed_string(hed_string)
+        if self._allow_attribute_groups:
+            validation_issues += self.count_attribute_group_braces(hed_string)
         return validation_issues
 
     def run_tag_level_validators(self, original_tag_list, formatted_tag_list):
@@ -1041,6 +1045,30 @@ class TagValidator:
             validation_error = error_reporter.report_error_type(TagValidator.BRACKET_ERROR_TYPE,
                                                                 opening_bracket_count=number_of_opening_brackets,
                                                                 closing_bracket_count=number_of_closing_brackets)
+            self._increment_issue_count()
+        return validation_error
+
+    def count_attribute_group_braces(self, hed_string):
+        """Reports a validation error if there are an unequal number of opening or closing curly braces. This is the
+         second check before the tags are parsed.
+
+        Parameters
+        ----------
+        hed_string: string
+            A hed string.
+        Returns
+        -------
+        string
+            A validation error string. If no errors are found then an empty string is returned.
+
+        """
+        validation_error = ''
+        number_of_opening_braces = hed_string.count('{')
+        number_of_closing_braces = hed_string.count('}')
+        if number_of_opening_braces != number_of_closing_braces:
+            validation_error = error_reporter.report_error_type(TagValidator.ATTRIBUTE_CURLY_BRACES_ERROR_TYPE,
+                                                                opening_bracket_count=number_of_opening_braces,
+                                                                closing_bracket_count=number_of_closing_braces)
             self._increment_issue_count()
         return validation_error
 

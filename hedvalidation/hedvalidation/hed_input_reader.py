@@ -37,7 +37,8 @@ class HedInputReader:
     HED_XML_EXTENSION = '.xml'
 
     def __init__(self, hed_input, tag_columns=[2], has_column_names=True, check_for_warnings=False,
-                 required_tag_columns={}, worksheet_name='', hed_xml_file='', run_semantic_validation=True):
+                 required_tag_columns={}, worksheet_name='', hed_xml_file='', run_semantic_validation=True,
+                 allow_attribute_groups=False):
         """Constructor for the HedInputReader class.
 
         Parameters
@@ -76,13 +77,16 @@ class HedInputReader:
             self._hed_dictionary = self._get_hed_dictionary(hed_xml_file)
             self._tag_validator = TagValidator(hed_dictionary=self._hed_dictionary,
                                                check_for_warnings=check_for_warnings,
+                                               allow_attribute_groups=allow_attribute_groups,
                                                run_semantic_validation=True)
         else:
             self._tag_validator = TagValidator(check_for_warnings=check_for_warnings,
+                                               allow_attribute_groups=allow_attribute_groups,
                                                run_semantic_validation=False)
 
-        self._validation_issues = self._validate_hed_input()
         self._run_semantic_validation = run_semantic_validation
+        self._allow_attribute_groups = allow_attribute_groups
+        self._validation_issues = self._validate_hed_input()
 
     def get_tag_validator(self):
         """Gets a TagValidator object.
@@ -273,7 +277,7 @@ class HedInputReader:
 
          """
         if row_hed_string:
-            hed_string_delimiter = HedStringDelimiter(row_hed_string)
+            hed_string_delimiter = HedStringDelimiter(row_hed_string, allow_attribute_groups=self._allow_attribute_groups)
             row_validation_issues = self._validate_top_level_in_hed_string(hed_string_delimiter)
             row_validation_issues += self._validate_tag_levels_in_hed_string(hed_string_delimiter)
             if row_validation_issues:
@@ -322,7 +326,7 @@ class HedInputReader:
         validation_issues = ''
         validation_issues += self._tag_validator.run_hed_string_validators(column_hed_string)
         if not validation_issues:
-            hed_string_delimiter = HedStringDelimiter(column_hed_string)
+            hed_string_delimiter = HedStringDelimiter(column_hed_string, allow_attribute_groups=self._allow_attribute_groups)
             validation_issues += self._validate_individual_tags_in_hed_string(hed_string_delimiter)
             validation_issues += self._validate_groups_in_hed_string(hed_string_delimiter)
         return validation_issues
@@ -343,7 +347,7 @@ class HedInputReader:
         validation_issues = ''
         validation_issues += self._tag_validator.run_hed_string_validators(hed_string)
         if not validation_issues:
-            hed_string_delimiter = HedStringDelimiter(hed_string)
+            hed_string_delimiter = HedStringDelimiter(hed_string, allow_attribute_groups=self._allow_attribute_groups)
             validation_issues += self._validate_individual_tags_in_hed_string(hed_string_delimiter)
             validation_issues += self._validate_top_level_in_hed_string(hed_string_delimiter)
             validation_issues += self._validate_tag_levels_in_hed_string(hed_string_delimiter)

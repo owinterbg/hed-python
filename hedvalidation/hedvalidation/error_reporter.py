@@ -47,6 +47,8 @@ def report_error_type(error_type, error_row=1, error_column=1, hed_string='', ta
     error_types = {
         'bracket': '\tERROR: Number of opening and closing parentheses are unequal. %s opening parentheses. %s '
                    'closing parentheses\n' % (opening_bracket_count, closing_bracket_count),
+        'attributeGroupBraces': '\tERROR: Number of opening and closing curly braces are unequal. %s opening curly braces. %s '
+                                'closing curly braces\n' % (opening_bracket_count, closing_bracket_count),
         'character': '\tERROR: Invalid character \"%s\"\n' % tag,
         'comma': '\tERROR: Comma missing after - \"%s\"\n' % tag,
         'commaValid': '\tERROR: Either \"%s\" contains a comma when it should not or \"%s\" is not a valid tag\n'
@@ -62,6 +64,7 @@ def report_error_type(error_type, error_row=1, error_column=1, hed_string='', ta
         'valid': '\tERROR: Invalid tag - \"%s\"\n' % tag,
         'extraDelimiter': '\tERROR: Extra delimiter \"%s\" at index %s of string \"%s\"'
                           % (character, index, hed_string),
-        'invalidCharacter': '\tERROR: ',
+        'invalidCharacter': '\tERROR: Invalid character \"%s\" at index %s of string \"%s\"'
+                            % (character, index, hed_string),
     }
     return error_types.get(error_type, None)

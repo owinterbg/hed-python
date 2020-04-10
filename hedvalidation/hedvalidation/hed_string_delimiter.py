@@ -21,7 +21,7 @@ class HedStringDelimiter:
     CLOSING_ATTRIBUTE_GROUP_CHARACTER = '}'
     TILDE = '~'
 
-    def __init__(self, hed_string):
+    def __init__(self, hed_string, allow_attribute_groups=False):
         """Constructor for the HedStringDelimiter class.
 
         Parameters
@@ -35,6 +35,7 @@ class HedStringDelimiter:
 
         """
         self.hed_string = hed_string
+        self._allow_attribute_groups = allow_attribute_groups
         self._split_hed_string_list = HedStringDelimiter.split_hed_string_into_list(hed_string)
         self.tags = []
         self.tag_groups = []
@@ -166,37 +167,41 @@ class HedStringDelimiter:
         """
         return self.tag_group_strings
 
-    def hed_string_is_an_attribute_group(self, hed_string, full_hed_string):
+    def hed_string_is_an_attribute_group(self, hed_string, starting_index):
         issues = ''
         trimmed_hed_string = hed_string.strip()
         if self.OPENING_ATTRIBUTE_GROUP_CHARACTER in trimmed_hed_string:
             if self.CLOSING_ATTRIBUTE_GROUP_CHARACTER not in trimmed_hed_string:
-                issues + error_reporter.report_error_type('invalidCharacter',
+                issues += error_reporter.report_error_type('invalidCharacter',
                                                           character=self.OPENING_ATTRIBUTE_GROUP_CHARACTER,
-                                                          index=full_hed_string.index(
-                                                              self.OPENING_ATTRIBUTE_GROUP_CHARACTER),
-                                                          hed_string=full_hed_string)
+                                                          index=self.hed_string.index(
+                                                              self.OPENING_ATTRIBUTE_GROUP_CHARACTER,
+                                                              starting_index),
+                                                          hed_string=self.hed_string)
                 return issues
             elif trimmed_hed_string.index(self.OPENING_ATTRIBUTE_GROUP_CHARACTER) > trimmed_hed_string.index(
-                    self.CLOSING_ATTRIBUTE_GROUP_CHARACTER):
-                issues + error_reporter.report_error_type('invalidCharacter',
+                    self.CLOSING_ATTRIBUTE_GROUP_CHARACTER) or not self._allow_attribute_groups:
+                issues += error_reporter.report_error_type('invalidCharacter',
                                                           character=self.OPENING_ATTRIBUTE_GROUP_CHARACTER,
-                                                          index=full_hed_string.index(
-                                                              self.OPENING_ATTRIBUTE_GROUP_CHARACTER),
-                                                          hed_string=full_hed_string)
-                issues + error_reporter.report_error_type('invalidCharacter',
+                                                          index=self.hed_string.index(
+                                                              self.OPENING_ATTRIBUTE_GROUP_CHARACTER,
+                                                              starting_index),
+                                                          hed_string=self.hed_string)
+                issues += error_reporter.report_error_type('invalidCharacter',
                                                           character=self.CLOSING_ATTRIBUTE_GROUP_CHARACTER,
-                                                          index=full_hed_string.index(
-                                                              self.CLOSING_ATTRIBUTE_GROUP_CHARACTER),
-                                                          hed_string=full_hed_string)
+                                                          index=self.hed_string.index(
+                                                              self.CLOSING_ATTRIBUTE_GROUP_CHARACTER,
+                                                              starting_index),
+                                                          hed_string=self.hed_string)
                 return issues
             return issues
         elif self.CLOSING_ATTRIBUTE_GROUP_CHARACTER in trimmed_hed_string:
-            issues + error_reporter.report_error_type('invalidCharacter',
+            issues += error_reporter.report_error_type('invalidCharacter',
                                                       character=self.CLOSING_ATTRIBUTE_GROUP_CHARACTER,
-                                                      index=full_hed_string.index(
-                                                          self.CLOSING_ATTRIBUTE_GROUP_CHARACTER),
-                                                      hed_string=full_hed_string)
+                                                      index=self.hed_string.index(
+                                                          self.CLOSING_ATTRIBUTE_GROUP_CHARACTER,
+                                                              starting_index),
+                                                      hed_string=self.hed_string)
             return issues
         return issues
 
@@ -211,13 +216,27 @@ class HedStringDelimiter:
         -------
 
         """
-        for tag_or_group in tag_group_list:
+        def attribute_adder(tag):
+            if tag.startswith('/'):
+                return 'Attribute' + tag
+            else:
+                return 'Attribute/' + tag
+
+        for starting_index, tag_or_group in tag_group_list:
             if HedStringDelimiter.hed_string_is_a_group(tag_or_group):
                 tag_group_string = HedStringDelimiter.remove_group_parentheses(tag_or_group)
                 nested_group_tag_list = HedStringDelimiter.split_hed_string_into_list(tag_group_string)
                 self._find_group_tags(nested_group_tag_list)
-                self.tag_groups.append(nested_group_tag_list)
                 self.tag_group_strings.append(tag_or_group)
+                self.tag_groups.append(list(map(lambda tag: tag[1], nested_group_tag_list)))
+            elif self.hed_string_is_an_attribute_group(tag_or_group, starting_index):
+                primary_tag, attribute_tag_string = tag_or_group.split(self.OPENING_ATTRIBUTE_GROUP_CHARACTER)
+                primary_tag = primary_tag.strip()
+                attribute_tag_list = self.split_hed_string_into_list(attribute_tag_string)
+                tag_group_list = list(map(attribute_adder, attribute_tag_list))
+                tag_group_list.insert(0, primary_tag)
+                self.tag_group_strings.append(tag_or_group)
+                self.tag_groups.append(tag_group_list)
             elif tag_or_group not in self.tags:
                 self.tags.append(tag_or_group)
 
@@ -232,8 +251,8 @@ class HedStringDelimiter:
             A list containing the top-level tags.
 
         """
-        top_level_tags = copy.copy(self._split_hed_string_list)
-        for tag_or_group in self._split_hed_string_list:
+        top_level_tags = list(map(lambda tag: tag[1], copy.copy(self._split_hed_string_list)))
+        for _, tag_or_group in self._split_hed_string_list:
             if HedStringDelimiter.hed_string_is_a_group(tag_or_group):
                 top_level_tags.remove(tag_or_group)
             elif tag_or_group not in self.tags:
@@ -336,7 +355,8 @@ class HedStringDelimiter:
         number_of_opening_groups = 0
         number_of_closing_groups = 0
         current_tag = ''
-        for character in hed_string:
+        starting_index = 0
+        for index, character in enumerate(hed_string):
             if character == HedStringDelimiter.DOUBLE_QUOTE_CHARACTER:
                 pass
             elif character == HedStringDelimiter.OPENING_GROUP_CHARACTER \
@@ -347,18 +367,20 @@ class HedStringDelimiter:
                 number_of_closing_groups += 1
             if number_of_opening_groups == number_of_closing_groups and character == HedStringDelimiter.TILDE:
                 if not HedStringDelimiter.string_is_space_or_empty(current_tag):
-                    split_hed_string.append(current_tag.strip())
-                split_hed_string.append(HedStringDelimiter.TILDE)
+                    split_hed_string.append((starting_index, current_tag.strip()))
+                split_hed_string.append((starting_index, HedStringDelimiter.TILDE))
+                starting_index = index
                 current_tag = ''
             elif number_of_opening_groups == number_of_closing_groups and character == \
                     HedStringDelimiter.DELIMITER:
                 if not HedStringDelimiter.string_is_space_or_empty(current_tag):
-                    split_hed_string.append(current_tag.strip())
+                    split_hed_string.append((starting_index, current_tag.strip()))
+                starting_index = index
                 current_tag = ''
             else:
                 current_tag += character
         if not HedStringDelimiter.string_is_space_or_empty(current_tag):
-            split_hed_string.append(current_tag.strip())
+            split_hed_string.append((starting_index, current_tag.strip()))
         return split_hed_string
 
     @staticmethod
